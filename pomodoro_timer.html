@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pomodoro Timer with Fireworks</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            background-color: rgb(211, 228, 239);
+        }
+
+        .container {
+            text-align: center;
+            position: relative;
+        }
+
+        h1 {
+            color: #c50f0f;
+        }
+
+        input, button {
+            padding: 10px;
+            margin: 10px;
+            font-size: 18px;
+            
+        }
+
+        .timer-container {
+            position: relative;
+            width: 300px;
+            height: 300px;
+        }
+
+        svg {
+            width: 100%;
+            height: 100%;
+        }
+
+        #timer {
+            font-size: 36px;
+            font-weight: bold;
+            color: black;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+        }
+
+        canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            pointer-events: none; /* 상호작용 차단 */
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Pomodoro Timer</h1>
+        <input type="number" id="timeInput" placeholder="Enter time in minutes">
+        <button id="startBtn">Start</button>
+        <div class="timer-container">
+            <svg viewBox="0 0 100 100">
+                <circle class="circle-bg" cx="50" cy="50" r="45" fill="white"></circle>
+                <path id="pizzaFill" class="pizza-fill" fill="red" d="M50,50 L50,5 A45,45 0 1,1 50,5 z"></path>
+            </svg>
+            <div id="timer">00:00</div>
+            <canvas id="fireworks"></canvas>
+        </div>
+    </div>
+
+    <script>
+        const timerDisplay = document.getElementById('timer');
+        const startBtn = document.getElementById('startBtn');
+        const timeInput = document.getElementById('timeInput');
+        const pizzaFill = document.getElementById('pizzaFill');
+        const canvas = document.getElementById('fireworks');
+        const ctx = canvas.getContext('2d');
+
+        let countdown, animationFrame, fireworksAnimation;
+        let totalSeconds, startTime;
+
+        canvas.width = 300;
+        canvas.height = 300;
+
+        // 폭죽 입자를 생성하는 클래스
+        class Particle {
+            constructor(x, y, color) {
+                this.x = x;
+                this.y = y;
+                this.size = Math.random() * 4 + 1;
+                this.speedX = (Math.random() - 0.5) * 8;
+                this.speedY = (Math.random() - 0.5) * 8;
+                this.color = color;
+                this.opacity = 1;
+            }
+
+            update() {
+                this.x += this.speedX;
+                this.y += this.speedY;
+                this.opacity -= 0.02;
+            }
+
+            draw() {
+                ctx.globalAlpha = this.opacity;
+                ctx.fillStyle = this.color;
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+                ctx.fill();
+            }
+        }
+
+        let particlesArray = [];
+
+        // 폭죽 애니메이션
+        function createFireworks() {
+            const colors = ['#ffcc00', '#ff3300', '#33cc33', '#3399ff', '#ff66ff'];
+            for (let i = 0; i < 30; i++) {
+                particlesArray.push(new Particle(canvas.width / 2, canvas.height / 2, colors[Math.floor(Math.random() * colors.length)]));
+            }
+        }
+
+        function animateFireworks() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            for (let i = 0; i < particlesArray.length; i++) {
+                particlesArray[i].update();
+                particlesArray[i].draw();
+                if (particlesArray[i].opacity <= 0) {
+                    particlesArray.splice(i, 1);
+                    i--;
+                }
+            }
+            if (particlesArray.length > 0) {
+                fireworksAnimation = requestAnimationFrame(animateFireworks);
+            }
+        }
+
+        function startTimer(minutes) {
+            totalSeconds = minutes * 60;
+            startTime = Date.now();
+            const endTime = startTime + totalSeconds * 1000;
+
+            displayTimeLeft(totalSeconds); // 초기 시간 표시
+
+            function updateTimer() {
+                const currentTime = Date.now();
+                const timePassed = Math.min((currentTime - startTime) / 1000, totalSeconds);
+                const timeLeft = totalSeconds - timePassed;
+                
+                if (Math.floor(timeLeft) !== Math.floor(timePassed)) {
+                    displayTimeLeft(Math.floor(timeLeft));
+                }
+
+                if (timeLeft <= 0) {
+                    timerDisplay.textContent = "Time's up!";
+                    cancelAnimationFrame(animationFrame);
+                    pizzaFill.setAttribute('d', describeArc(50, 50, 45, 0, 0));  // 원을 없앰
+                    // 폭죽 애니메이션 시작
+                    createFireworks();
+                    animateFireworks();
+                    return;
+                }
+
+                const percentageLeft = (timeLeft / totalSeconds) * 360;
+                pizzaFill.setAttribute('d', describeArc(50, 50, 45, 0, percentageLeft));
+
+                animationFrame = requestAnimationFrame(updateTimer);
+            }
+
+            updateTimer();
+        }
+
+        function displayTimeLeft(seconds) {
+            const minutes = Math.floor(seconds / 60);
+            const remainderSeconds = seconds % 60;
+            const display = `${minutes < 10 ? '0' : ''}${minutes}:${remainderSeconds < 10 ? '0' : ''}${remainderSeconds}`;
+            timerDisplay.textContent = display;
+        }
+
+        startBtn.addEventListener('click', () => {
+            const minutes = parseInt(timeInput.value);
+            if (isNaN(minutes) || minutes <= 0) {
+                alert('Please enter a valid number of minutes');
+                return;
+            }
+            cancelAnimationFrame(animationFrame); // 기존 타이머 초기화
+            cancelAnimationFrame(fireworksAnimation); // 기존 폭죽 초기화
+            particlesArray = []; // 기존 폭죽 입자 초기화
+            ctx.clearRect(0, 0, canvas.width, canvas.height); // 폭죽 애니메이션 초기화
+            startTimer(minutes);
+        });
+
+        function polarToCartesian(centerX, centerY, radius, angleInDegrees) {
+            const angleInRadians = (angleInDegrees - 90) * Math.PI / 180.0;
+            return {
+                x: centerX + (radius * Math.cos(angleInRadians)),
+                y: centerY + (radius * Math.sin(angleInRadians))
+            };
+        }
+
+        function describeArc(x, y, radius, startAngle, endAngle) {
+            const start = polarToCartesian(x, y, radius, endAngle);
+            const end = polarToCartesian(x, y, radius, startAngle);
+            const largeArcFlag = endAngle - startAngle <= 180 ? "0" : "1";
+            const d = ["M", x, y, "L", start.x, start.y, "A", radius, radius, 0, largeArcFlag, 0, end.x, end.y, "L", x, y].join(" ");
+            return d;
+        }
+    </script>
+</body>
+</html>
